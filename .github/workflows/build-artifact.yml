@@ -1,0 +1,63 @@
+name: Build Docker Artifact
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build-artifact:
+    name: Build Docker Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Image reference (immutable tag)
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          echo "IMAGE=${{ secrets.DOCKER_USERNAME }}/app-service:sha-${SHORT_SHA}" >> "$GITHUB_ENV"
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          file: ./app/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Write release-manifest.json
+        env:
+          IMAGE: ${{ env.IMAGE }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          jq -n \
+            --arg commit "${GITHUB_SHA}" \
+            --arg image "$IMAGE" \
+            --arg digest "$DIGEST" \
+            '{commit: $commit, services: {"app-service": {image: $image, digest: $digest}}}' \
+            > release-manifest.json
+          cat release-manifest.json
+
+      - name: Upload release manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest
+          path: release-manifest.json
