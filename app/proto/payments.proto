@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package payments.v1;
+
+service Payments {
+  rpc Authorize (AuthorizeRequest) returns (AuthorizeResponse);
+  rpc GetPaymentStatus (GetPaymentStatusRequest) returns (GetPaymentStatusResponse);
+  rpc Capture (CaptureRequest) returns (OperationResponse);
+  rpc Refund (RefundRequest) returns (OperationResponse);
+}
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_STATUS_AUTHORIZED = 1;
+  PAYMENT_STATUS_CAPTURED = 2;
+  PAYMENT_STATUS_REFUNDED = 3;
+  PAYMENT_STATUS_FAILED = 4;
+  PAYMENT_STATUS_PENDING = 5;
+}
+
+message Money {
+  string amount = 1;
+  string currency = 2;
+}
+
+message AuthorizeRequest {
+  string order_id = 1;
+  string user_id = 2;
+  Money total = 3;
+  string idempotency_key = 4;
+  string payment_method = 5;
+  bool simulate_unavailable_once = 6;
+  // Dev/test: delay before responding (to exercise client deadline / RxJS timeout path).
+  uint32 simulate_authorize_delay_ms = 7;
+}
+
+message AuthorizeResponse {
+  string payment_id = 1;
+  PaymentStatus status = 2;
+  string message = 3;
+  string provider_ref = 4;
+  uint32 schema_version = 5;
+}
+
+message GetPaymentStatusRequest {
+  string payment_id = 1;
+}
+
+message GetPaymentStatusResponse {
+  string payment_id = 1;
+  PaymentStatus status = 2;
+  string order_id = 3;
+  string provider_ref = 4;
+  string failure_reason = 5;
+}
+
+message CaptureRequest {
+  string payment_id = 1;
+}
+
+message RefundRequest {
+  string payment_id = 1;
+  Money amount = 2;
+}
+
+message OperationResponse {
+  bool ok = 1;
+  string message = 2;
+}
