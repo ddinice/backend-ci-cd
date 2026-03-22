@@ -23,7 +23,8 @@
     "db:generate": "typeorm-ts-node-commonjs -d data-source.ts migration:generate",
     "db:migrate": "typeorm-ts-node-commonjs -d data-source.ts migration:run",
     "db:revert": "typeorm-ts-node-commonjs -d data-source.ts migration:revert",
-    "db:seed": "ts-node -r tsconfig-paths/register src/seed/seed.ts"
+    "db:seed": "ts-node -r tsconfig-paths/register src/seed/seed.ts",
+    "db:check": "ts-node -r tsconfig-paths/register scripts/check-migration-schema.ts"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.3",

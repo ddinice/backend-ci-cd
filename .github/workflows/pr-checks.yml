@@ -16,20 +16,26 @@ jobs:
     defaults:
       run:
         working-directory: app
-    outputs:
-      short_sha: ${{ steps.meta.outputs.short_sha }}
-      bundle_name: ${{ steps.meta.outputs.bundle_name }}
-      image_tag: ${{ steps.meta.outputs.image_tag }}
-      release_label: ${{ steps.meta.outputs.release_label }}
-      target_environment: ${{ steps.meta.outputs.target_environment }}
-      run_smoke: ${{ steps.flags.outputs.run_smoke }}
-      strict_policy: ${{ steps.flags.outputs.strict_policy }}
-      publish_bundle: ${{ steps.flags.outputs.publish_bundle }}
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -37,20 +43,30 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: Run Lint
+      - name: Lint
         run: npm run lint
 
-      - name: Run Unit Tests
+      - name: Unit tests
         run: npm run test
 
-      - name: Run Smoke Tests
+      - name: Smoke tests (HTTP)
         run: npm run test:smoke
 
-      - name: Build Project
+      - name: Migration and schema check
+        env:
+          NODE_ENV: example
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_USER: postgres
+          DB_PASS: postgres
+          DB_NAME: postgres
+        run: npm run db:check
+
+      - name: Build
         run: npm run build
 
       - name: Docker build validation
-        run: docker build -t app-service:test .
+        run: docker build -t app-service:ci .

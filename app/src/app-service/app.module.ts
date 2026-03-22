@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { HealthModule } from './health/health.module';
 import { OrdersModule } from './orders/orders.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -24,6 +25,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         logging: ['query'],
       }),
     }),
+    HealthModule,
     OrdersModule,
   ],
 })

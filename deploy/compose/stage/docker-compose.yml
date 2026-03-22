@@ -1,0 +1,43 @@
+# Stage stack on a DigitalOcean Droplet (Docker + Compose).
+# Copy docker-compose.yml + .env to the server, then: docker compose pull && docker compose up -d
+#
+# .env is generated in CI or created locally from env.template (never commit real .env).
+
+name: stage
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - pgdata_stage:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER} -d ${DB_NAME}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app-service:
+    image: ${APP_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '${APP_PUBLIC_PORT:-3022}:3022'
+    environment:
+      NODE_ENV: stage
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_NAME: ${DB_NAME}
+      APP_SERVICE_PORT: '3022'
+      PAYMENTS_GRPC_URL: ${PAYMENTS_GRPC_URL:-127.0.0.1:5022}
+
+volumes:
+  pgdata_stage:

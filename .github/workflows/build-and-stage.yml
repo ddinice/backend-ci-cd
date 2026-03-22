@@ -1,4 +1,7 @@
-name: Build Docker Artifact
+# Builds Docker image, pushes to registry with immutable tag, uploads release-manifest.json.
+# Downstream: Deploy Stage workflow runs after successful completion (workflow_run).
+
+name: Build and Stage
 
 on:
   push:
@@ -11,8 +14,8 @@ permissions:
   contents: read
 
 jobs:
-  build-artifact:
-    name: Build Docker Artifact
+  build-and-stage:
+    name: Build Docker image
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -52,7 +55,7 @@ jobs:
             --arg commit "${GITHUB_SHA}" \
             --arg image "$IMAGE" \
             --arg digest "$DIGEST" \
-            '{commit: $commit, services: {"app-service": {image: $image, digest: $digest}}}' \
+            '{commit: $commit, services: {"orders-api": {image: $image, digest: $digest}, "app-service": {image: $image, digest: $digest}}}' \
             > release-manifest.json
           cat release-manifest.json
 

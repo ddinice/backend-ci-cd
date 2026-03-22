@@ -1,0 +1,121 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: >-
+          Full image ref to deploy (must match a build from Build and Stage). Example: org/app-service:sha-abc1234
+        required: true
+        type: string
+      commit_sha:
+        description: Optional commit SHA for logs (defaults to workflow SHA).
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-production:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log deployment metadata
+        env:
+          IMAGE: ${{ github.event.inputs.image }}
+          COMMIT: ${{ github.event.inputs.commit_sha }}
+        run: |
+          echo "=== Production deploy ==="
+          echo "target_environment=production"
+          echo "image=${IMAGE}"
+          echo "commit_sha=${COMMIT:-${{ github.sha }}}"
+
+      - name: Write Compose .env
+        env:
+          APP_IMAGE: ${{ github.event.inputs.image }}
+          DB_USER: ${{ secrets.PROD_DB_USER }}
+          DB_PASS: ${{ secrets.PROD_DB_PASS }}
+          DB_NAME: ${{ secrets.PROD_DB_NAME }}
+          PAYMENTS_GRPC_URL: ${{ secrets.PROD_PAYMENTS_GRPC_URL }}
+          APP_PUBLIC_PORT: ${{ vars.PROD_APP_PUBLIC_PORT }}
+        run: |
+          if [ -z "$DB_USER" ] || [ -z "$DB_PASS" ] || [ -z "$DB_NAME" ]; then
+            echo "::error::Set PROD_DB_USER, PROD_DB_PASS, PROD_DB_NAME on Environment 'production'."
+            exit 1
+          fi
+          PORT="${APP_PUBLIC_PORT:-3022}"
+          PAY="${PAYMENTS_GRPC_URL:-127.0.0.1:5022}"
+          {
+            echo "APP_IMAGE=$APP_IMAGE"
+            echo "APP_PUBLIC_PORT=$PORT"
+            echo "DB_USER=$DB_USER"
+            echo "DB_PASS=$DB_PASS"
+            echo "DB_NAME=$DB_NAME"
+            echo "PAYMENTS_GRPC_URL=$PAY"
+          } > deploy/compose/production/.env
+
+      - name: Bundle files for Droplet
+        run: |
+          mkdir -p .prod-bundle
+          cp deploy/compose/production/docker-compose.yml .prod-bundle/
+          cp deploy/compose/production/.env .prod-bundle/
+          cp deploy/scripts/deploy-prod-compose-remote.sh .prod-bundle/deploy.sh
+          chmod +x .prod-bundle/deploy.sh
+          tar -czf prod-bundle.tgz -C .prod-bundle .
+
+      - name: Copy bundle to Droplet
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_DROPLET_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          port: 22
+          source: prod-bundle.tgz
+          target: /opt/production
+          overwrite: true
+
+      - name: Deploy on Droplet (pull + up, no build)
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
+        with:
+          host: ${{ secrets.PROD_DROPLET_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          port: 22
+          envs: DOCKER_USER,DOCKER_PASS
+          script: |
+            set -e
+            mkdir -p /opt/production
+            cd /opt/production
+            tar -xzf prod-bundle.tgz
+            rm -f prod-bundle.tgz
+            chmod +x deploy.sh
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+            PROD_DEPLOY_DIR=/opt/production bash /opt/production/deploy.sh
+
+      - name: Post-deploy smoke (on Droplet)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_DROPLET_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
+            PORT="${{ vars.PROD_APP_PUBLIC_PORT }}"
+            PORT="${PORT:-3022}"
+            curl -fsS "http://127.0.0.1:${PORT}/health" | grep -q '"status":"ok"'
+            curl -fsS "http://127.0.0.1:${PORT}/orders" | grep -q '\['
+            echo "production smoke OK"
