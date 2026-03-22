@@ -7,8 +7,8 @@ on:
       - main
 
 jobs:
-  context:
-    name: Context Checks
+  pr-checks:
+    name: PR Checks
     runs-on: ubuntu-latest
     defaults:
       run:
