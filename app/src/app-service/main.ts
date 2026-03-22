@@ -15,4 +15,4 @@ async function bootstrap() {
   logger.log(`[Service: APP-SERVICE] started on http://localhost:${port}`);
 }
 
-bootstrap();
+void bootstrap();

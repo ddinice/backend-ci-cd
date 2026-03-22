@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import type { EntityManager } from 'typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Order, OrderStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
@@ -42,9 +43,9 @@ describe('OrdersService', () => {
     it('creates order and items inside a transaction', async () => {
       const orderRepo = {
         create: jest.fn((data: Partial<Order>) => ({ ...data }) as Order),
-        save: jest.fn(async (entity: Order) => {
+        save: jest.fn((entity: Order) => {
           entity.id = orderId;
-          return entity;
+          return Promise.resolve(entity);
         }),
       };
       const orderItemRepo = {
@@ -52,16 +53,18 @@ describe('OrdersService', () => {
         save: jest.fn().mockResolvedValue(undefined),
       };
 
-      dataSource.transaction.mockImplementation(async (cb) => {
-        const manager = {
-          getRepository: (entity: unknown) => {
-            if (entity === Order) return orderRepo;
-            if (entity === OrderItem) return orderItemRepo;
-            throw new Error('unexpected entity');
-          },
-        };
-        return cb(manager as never);
-      });
+      dataSource.transaction.mockImplementation(
+        (cb: (manager: EntityManager) => Promise<unknown>) => {
+          const manager = {
+            getRepository: (entity: unknown) => {
+              if (entity === Order) return orderRepo;
+              if (entity === OrderItem) return orderItemRepo;
+              throw new Error('unexpected entity');
+            },
+          };
+          return Promise.resolve(cb(manager as unknown as EntityManager));
+        },
+      );
 
       const result = await service.createOrder([
         { productId: 'p1', quantity: 2 },
@@ -129,18 +132,20 @@ describe('OrdersService', () => {
 
   describe('markOrderPaymentResult', () => {
     it('throws when order does not exist', async () => {
-      dataSource.transaction.mockImplementation(async (cb) => {
-        const orderRepo = {
-          findOne: jest.fn().mockResolvedValue(null),
-        };
-        const manager = {
-          getRepository: (entity: unknown) => {
-            if (entity === Order) return orderRepo;
-            return { upsert: jest.fn() };
-          },
-        };
-        return cb(manager as never);
-      });
+      dataSource.transaction.mockImplementation(
+        (cb: (manager: EntityManager) => Promise<unknown>) => {
+          const orderRepo = {
+            findOne: jest.fn().mockResolvedValue(null),
+          };
+          const manager = {
+            getRepository: (entity: unknown) => {
+              if (entity === Order) return orderRepo;
+              return { upsert: jest.fn() };
+            },
+          };
+          return Promise.resolve(cb(manager as unknown as EntityManager));
+        },
+      );
 
       await expect(
         service.markOrderPaymentResult(orderId, {
@@ -158,22 +163,24 @@ describe('OrdersService', () => {
       } as Order;
       const orderRepo = {
         findOne: jest.fn().mockResolvedValue(order),
-        save: jest.fn().mockImplementation(async (o: Order) => o),
+        save: jest.fn((o: Order) => Promise.resolve(o)),
       };
       const paymentsRepo = {
         upsert: jest.fn().mockResolvedValue(undefined),
       };
 
-      dataSource.transaction.mockImplementation(async (cb) => {
-        const manager = {
-          getRepository: (entity: unknown) => {
-            if (entity === Order) return orderRepo;
-            if (entity === Payment) return paymentsRepo;
-            throw new Error('unexpected entity');
-          },
-        };
-        return cb(manager as never);
-      });
+      dataSource.transaction.mockImplementation(
+        (cb: (manager: EntityManager) => Promise<unknown>) => {
+          const manager = {
+            getRepository: (entity: unknown) => {
+              if (entity === Order) return orderRepo;
+              if (entity === Payment) return paymentsRepo;
+              throw new Error('unexpected entity');
+            },
+          };
+          return Promise.resolve(cb(manager as unknown as EntityManager));
+        },
+      );
 
       await service.markOrderPaymentResult(orderId, {
         paymentId: 'ext-1',
@@ -201,22 +208,24 @@ describe('OrdersService', () => {
       } as Order;
       const orderRepo = {
         findOne: jest.fn().mockResolvedValue(order),
-        save: jest.fn().mockImplementation(async (o: Order) => o),
+        save: jest.fn((o: Order) => Promise.resolve(o)),
       };
       const paymentsRepo = {
         upsert: jest.fn().mockResolvedValue(undefined),
       };
 
-      dataSource.transaction.mockImplementation(async (cb) => {
-        const manager = {
-          getRepository: (entity: unknown) => {
-            if (entity === Order) return orderRepo;
-            if (entity === Payment) return paymentsRepo;
-            throw new Error('unexpected entity');
-          },
-        };
-        return cb(manager as never);
-      });
+      dataSource.transaction.mockImplementation(
+        (cb: (manager: EntityManager) => Promise<unknown>) => {
+          const manager = {
+            getRepository: (entity: unknown) => {
+              if (entity === Order) return orderRepo;
+              if (entity === Payment) return paymentsRepo;
+              throw new Error('unexpected entity');
+            },
+          };
+          return Promise.resolve(cb(manager as unknown as EntityManager));
+        },
+      );
 
       await service.markOrderPaymentResult(orderId, {
         paymentId: null,
@@ -249,16 +258,18 @@ describe('OrdersService', () => {
         upsert: jest.fn().mockResolvedValue(undefined),
       };
 
-      dataSource.transaction.mockImplementation(async (cb) => {
-        const manager = {
-          getRepository: (entity: unknown) => {
-            if (entity === Order) return orderRepo;
-            if (entity === Payment) return paymentsRepo;
-            throw new Error('unexpected entity');
-          },
-        };
-        return cb(manager as never);
-      });
+      dataSource.transaction.mockImplementation(
+        (cb: (manager: EntityManager) => Promise<unknown>) => {
+          const manager = {
+            getRepository: (entity: unknown) => {
+              if (entity === Order) return orderRepo;
+              if (entity === Payment) return paymentsRepo;
+              throw new Error('unexpected entity');
+            },
+          };
+          return Promise.resolve(cb(manager as unknown as EntityManager));
+        },
+      );
 
       await service.markOrderPaymentResult(orderId, {
         paymentId: 'x',

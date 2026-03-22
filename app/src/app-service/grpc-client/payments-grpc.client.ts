@@ -13,6 +13,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { ClientGrpc } from '@nestjs/microservices';
 import { status as GrpcStatus } from '@grpc/grpc-js';
+import type { ObservableInput } from 'rxjs';
 import {
   firstValueFrom,
   retry,
@@ -65,7 +66,10 @@ export class PaymentsGrpcClient implements OnModuleInit {
           timeout(timeoutMs),
           retry({
             count: maxRetries,
-            delay: (error, retryIndex) => {
+            delay: (
+              error: unknown,
+              retryIndex: number,
+            ): ObservableInput<number> => {
               if (!this.isTransient(error)) {
                 return throwError(() => error);
               }

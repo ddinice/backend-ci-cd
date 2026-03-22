@@ -30,4 +30,4 @@ async function bootstrap() {
   logger.log(`gRPC started on ${url}`);
 }
 
-bootstrap();
+void bootstrap();

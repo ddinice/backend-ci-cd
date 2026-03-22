@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import type { Server } from 'node:http';
 import request from 'supertest';
 import { PaymentsGrpcClient } from '../../src/app-service/grpc-client/payments-grpc.client';
 import { OrdersController } from '../../src/app-service/orders/orders.controller';
@@ -41,7 +42,7 @@ describe('Smoke: orders HTTP', () => {
   });
 
   it('GET /orders returns 200 and JSON', async () => {
-    await request(app.getHttpServer())
+    await request(app.getHttpServer() as Server)
       .get('/orders')
       .expect(200)
       .expect('Content-Type', /json/)
